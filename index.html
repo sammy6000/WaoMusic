@@ -784,6 +784,17 @@ function maybeShowUnlockOverlay() {
 // the only reliable way to re-unlock the iOS audio session.
 // ----------------------------------------------------------
 function handleUnlockTap() {
+  // 0. Play a silent <audio> element — this switches the iOS audio
+  //    session category from "ambient" (muted by silent switch) to
+  //    "playback" (bypasses the mute/silent switch), exactly like
+  //    native music apps.  Must happen synchronously in the gesture.
+  try {
+    // Minimal valid WAV: 44-byte header + 1 silent sample
+    const silentWav = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+    const silentAudio = new Audio(silentWav);
+    silentAudio.play().catch(() => {});
+  } catch(e) {}
+
   // 1. If the existing context is stale (suspended/interrupted/closed),
   //    discard it so we start completely fresh inside this gesture.
   if (audioCtx && audioCtx.state !== 'running') {
@@ -1015,9 +1026,7 @@ function generateMelodyQuestion() {
 
   return {
     type: 'melody',
-    text: changeMelody
-      ? `Listen to both melodies. They are DIFFERENT. Which note changed? (Note ${changedPos + 1})`
-      : 'Listen to both melodies carefully. Are they the SAME or DIFFERENT?',
+    text: 'Listen to both melodies carefully. Are they the SAME or DIFFERENT?',
     play: (playBoth = true) => {
       const ctx = getAudioCtx();
       const freqs1 = melody1.map(n => NOTES[n]);
