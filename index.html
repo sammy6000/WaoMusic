@@ -609,6 +609,52 @@ body::before {
   .mode-card { padding: 16px 10px; }
   .options-grid.two-col { grid-template-columns: 1fr; }
 }
+
+/* DIFFICULTY SELECTOR */
+.diff-selector {
+  width: 100%;
+  max-width: 480px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+.diff-label {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 8px;
+}
+.diff-pills {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  background: var(--card);
+  border-radius: 14px;
+  padding: 5px;
+}
+.diff-pill {
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 4px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.18s;
+  line-height: 1.3;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.diff-pill.active {
+  background: linear-gradient(135deg, var(--melody), var(--pitch));
+  color: white;
+  box-shadow: 0 2px 10px rgba(167,139,250,0.4);
+}
+.diff-pill:not(.active):hover { color: var(--white); background: rgba(255,255,255,0.06); }
+
 </style>
 
 </head>
@@ -656,6 +702,16 @@ body::before {
         <div class="mode-icon">🎸</div>
         <div class="mode-name">Texture</div>
         <div class="mode-desc">How Many Sounds?</div>
+      </div>
+    </div>
+
+    <div class="diff-selector">
+      <div class="diff-label">Difficulty</div>
+      <div class="diff-pills">
+        <button class="diff-pill active" id="diff-beginner"     onclick="selectDifficulty('beginner')">🌱<br>Beginner</button>
+        <button class="diff-pill"        id="diff-intermediate" onclick="selectDifficulty('intermediate')">⭐<br>Moderate</button>
+        <button class="diff-pill"        id="diff-advanced"     onclick="selectDifficulty('advanced')">🔥<br>Advanced</button>
+        <button class="diff-pill"        id="diff-mozart"       onclick="selectDifficulty('mozart')">🎻<br>Mozart</button>
       </div>
     </div>
 
@@ -1061,14 +1117,32 @@ function playInstrumentSequence(noteFreqs, bpm = 120, synthFn, startDelay = 0) {
   return now + noteFreqs.length * beatDur;
 }
 
-// Note frequencies
+// Note frequencies — natural notes + chromatic (sharps) for Mozart level.
+// Sharp names use 's' suffix: Cs4 = C#4, Ds4 = D#4, etc.
 const NOTES = {
-  C4: 261.63, D4: 293.66, E4: 329.63, F4: 349.23,
-  G4: 392.00, A4: 440.00, B4: 493.88,
-  C5: 523.25, D5: 587.33, E5: 659.25, F5: 698.46,
-  G5: 783.99, A5: 880.00, B5: 987.77,
-  C3: 130.81, D3: 146.83, E3: 164.81, G3: 196.00, A3: 220.00,
+  // Octave 3
+  C3: 130.81, Cs3: 138.59, D3: 146.83, Ds3: 155.56,
+  E3: 164.81, F3: 174.61, Fs3: 185.00, G3: 196.00,
+  Gs3: 207.65, A3: 220.00, As3: 233.08, B3: 246.94,
+  // Octave 4
+  C4: 261.63, Cs4: 277.18, D4: 293.66, Ds4: 311.13,
+  E4: 329.63, F4: 349.23, Fs4: 369.99, G4: 392.00,
+  Gs4: 415.30, A4: 440.00, As4: 466.16, B4: 493.88,
+  // Octave 5
+  C5: 523.25, Cs5: 554.37, D5: 587.33, Ds5: 622.25,
+  E5: 659.25, F5: 698.46, Fs5: 739.99, G5: 783.99,
+  Gs5: 830.61, A5: 880.00, As5: 932.33, B5: 987.77,
 };
+
+// MIDI-style semitone index for each note (used to enforce interval constraints).
+const NOTE_ST = {
+  C3:48,Cs3:49,D3:50,Ds3:51,E3:52,F3:53,Fs3:54,G3:55,Gs3:56,A3:57,As3:58,B3:59,
+  C4:60,Cs4:61,D4:62,Ds4:63,E4:64,F4:65,Fs4:66,G4:67,Gs4:68,A4:69,As4:70,B4:71,
+  C5:72,Cs5:73,D5:74,Ds5:75,E5:76,F5:77,Fs5:78,G5:79,Gs5:80,A5:81,As5:82,B5:83,
+};
+
+// Pretty-print a note name (Cs4 → C#4).
+function prettyNote(n) { return n.replace('s', '#'); }
 
 function randomNote(pool) {
   return pool[Math.floor(Math.random() * pool.length)];
@@ -1099,6 +1173,7 @@ function playRhythm(pattern, bpm = 100, startDelay = 0) {
 // ============================================================
 let state = {
   mode: 'pitch',
+  difficulty: 'beginner',
   questions: [],
   currentQ: 0,
   score: 0,
@@ -1115,14 +1190,32 @@ let state = {
 // ============================================================
 
 function generatePitchQuestion() {
-  const pool = ['C4','D4','E4','F4','G4','A4','B4','C5','D5','E5','F5','G5','A5'];
+  const diff = state.difficulty;
+
+  // Note pools and minimum semitone gaps per difficulty.
+  // Mozart opens the full chromatic scale — you must distinguish
+  // notes just one semitone apart (e.g. C4 vs C#4).
+  const POOLS = {
+    beginner:     ['C4','E4','G4','A4','C5','E5','G5'],
+    intermediate: ['C4','D4','E4','F4','G4','A4','B4','C5','D5','E5','F5','G5'],
+    advanced:     ['C4','D4','E4','F4','G4','A4','B4','C5','D5','E5','F5','G5','A5'],
+    mozart:       Object.keys(NOTE_ST).filter(n => NOTE_ST[n] >= 60 && NOTE_ST[n] <= 79),
+  };
+  const MIN_ST = { beginner: 7, intermediate: 4, advanced: 2, mozart: 1 };
+
+  const pool = POOLS[diff];
+  const minSt = MIN_ST[diff];
+
   const note1 = randomNote(pool);
-  let note2;
-  do { note2 = randomNote(pool); } while (note2 === note1);
+  let note2, tries = 0;
+  do {
+    note2 = randomNote(pool);
+    tries++;
+  } while ((note2 === note1 || Math.abs(NOTE_ST[note2] - NOTE_ST[note1]) < minSt) && tries < 40);
 
   const isHigher = NOTES[note2] > NOTES[note1];
-  const diff = Math.abs(NOTES[note2] - NOTES[note1]);
-  const difficulty = diff > 100 ? 'easy' : diff > 40 ? 'medium' : 'hard';
+  const stDiff = Math.abs(NOTE_ST[note2] - NOTE_ST[note1]);
+  const difficulty = stDiff >= 7 ? 'easy' : stDiff >= 4 ? 'medium' : 'hard';
 
   return {
     type: 'pitch',
@@ -1135,7 +1228,7 @@ function generatePitchQuestion() {
     },
     options: ['Higher ↑', 'Lower ↓'],
     correct: isHigher ? 'Higher ↑' : 'Lower ↓',
-    explanation: `The first note was ${note1} and the second was ${note2}.`,
+    explanation: `First note: ${prettyNote(note1)}. Second note: ${prettyNote(note2)} — ${stDiff} semitone${stDiff !== 1 ? 's' : ''} apart.`,
     optionLayout: 'two-col',
     visualiser: 'pitch',
     note1, note2, difficulty,
@@ -1143,8 +1236,21 @@ function generatePitchQuestion() {
 }
 
 function generateMelodyQuestion() {
-  const pool = ['C4','D4','E4','F4','G4','A4','B4','C5'];
-  const len = 4 + Math.floor(Math.random() * 3);
+  const diff = state.difficulty;
+
+  // Beginner: pentatonic (no adjacent semitones), short, slow.
+  // Intermediate: full major scale, medium length.
+  // Advanced: wider range, faster — changes can be any scale degree.
+  // Mozart: chromatic pool, long melodies, fast — changes may be ±1 semitone.
+  const CFG = {
+    beginner:     { pool: ['C4','D4','E4','G4','A4','C5'], len: [4,4], bpm: 85 },
+    intermediate: { pool: ['C4','D4','E4','F4','G4','A4','B4','C5'], len: [4,5], bpm: 110 },
+    advanced:     { pool: ['C4','D4','E4','F4','G4','A4','B4','C5','D5'], len: [5,6], bpm: 130 },
+    mozart:       { pool: ['C4','Cs4','D4','Ds4','E4','F4','Fs4','G4','Gs4','A4','As4','B4','C5'], len: [6,7], bpm: 145 },
+  };
+
+  const { pool, len: [minL, maxL], bpm } = CFG[diff];
+  const len = minL + Math.floor(Math.random() * (maxL - minL + 1));
 
   const melody1 = Array.from({length: len}, () => randomNote(pool));
   const melody2 = [...melody1];
@@ -1154,8 +1260,9 @@ function generateMelodyQuestion() {
 
   if (changeMelody) {
     changedPos = Math.floor(Math.random() * len);
-    let newNote;
-    do { newNote = randomNote(pool); } while (newNote === melody1[changedPos]);
+    let newNote, tries = 0;
+    do { newNote = randomNote(pool); tries++; }
+    while (newNote === melody1[changedPos] && tries < 30);
     melody2[changedPos] = newNote;
   }
 
@@ -1166,16 +1273,16 @@ function generateMelodyQuestion() {
       const ctx = getAudioCtx();
       const freqs1 = melody1.map(n => NOTES[n]);
       const freqs2 = melody2.map(n => NOTES[n]);
-      const end1 = playInstrumentSequence(freqs1, 130, synthPiano);
+      const end1 = playInstrumentSequence(freqs1, bpm, synthPiano);
       if (playBoth) {
         const gap = end1 - ctx.currentTime + 0.3;
-        playInstrumentSequence(freqs2, 130, synthPiano, gap);
+        playInstrumentSequence(freqs2, bpm, synthPiano, gap);
       }
     },
     options: ['Same', 'Different'],
     correct: changeMelody ? 'Different' : 'Same',
     explanation: changeMelody
-      ? `Note ${changedPos + 1} changed from ${melody1[changedPos]} to ${melody2[changedPos]}.`
+      ? `Note ${changedPos + 1} changed: ${prettyNote(melody1[changedPos])} → ${prettyNote(melody2[changedPos])}.`
       : 'Both melodies were identical.',
     optionLayout: 'two-col',
     visualiser: null,
@@ -1184,22 +1291,40 @@ function generateMelodyQuestion() {
 }
 
 function generateRhythmQuestion() {
+  const diff = state.difficulty;
   const len = 8;
-  const patterns = [
-    // Straight / march
+
+  // All patterns grouped by complexity.
+  // Each difficulty draws from a cumulative slice so harder levels
+  // include all easier patterns plus their own additional ones.
+  const STRAIGHT = [
     [1,0,1,0,1,0,1,0], [1,0,0,0,1,0,0,0], [1,0,0,1,0,0,1,0],
     [1,1,0,0,1,1,0,0], [1,0,1,0,0,1,0,0], [1,0,0,0,1,0,1,0],
-    // Forward-accented
+  ];
+  const ACCENTED = [
     [1,1,0,1,1,0,1,0], [1,1,1,0,1,1,1,0], [1,0,1,1,0,0,1,0],
     [1,1,1,1,0,0,0,0], [1,0,0,1,1,1,0,0], [1,1,0,0,0,1,0,0],
-    // Syncopated
+  ];
+  const SYNCOPATED = [
     [0,0,1,0,0,0,1,0], [1,0,0,1,1,0,0,1], [0,1,0,1,0,1,0,1],
     [1,0,0,1,0,1,0,0], [0,1,0,0,1,0,1,0], [1,0,1,0,0,0,1,1],
     [1,1,0,0,1,0,1,1], [0,0,1,1,0,1,0,0], [1,0,0,1,0,0,0,1],
-    // Dense / complex
+  ];
+  const COMPLEX = [
     [1,1,0,1,0,1,1,0], [1,0,1,1,0,1,0,1], [0,1,1,0,1,0,0,1],
     [1,1,1,0,0,1,0,0], [1,0,1,0,1,1,0,0],
   ];
+
+  const POOL = {
+    beginner:     STRAIGHT,
+    intermediate: [...STRAIGHT, ...ACCENTED],
+    advanced:     [...STRAIGHT, ...ACCENTED, ...SYNCOPATED],
+    mozart:       [...STRAIGHT, ...ACCENTED, ...SYNCOPATED, ...COMPLEX],
+  };
+  const BPM = { beginner: 75, intermediate: 95, advanced: 115, mozart: 130 };
+
+  const patterns = POOL[diff];
+  const bpm = BPM[diff];
 
   const pattern1 = patterns[Math.floor(Math.random() * patterns.length)].slice();
   const pattern2 = [...pattern1];
@@ -1217,9 +1342,9 @@ function generateRhythmQuestion() {
     text: 'Listen to both rhythms. Are they the SAME or DIFFERENT?',
     play: () => {
       const ctx = getAudioCtx();
-      const end1 = playRhythm(pattern1, 110);
+      const end1 = playRhythm(pattern1, bpm);
       const gap = end1 - ctx.currentTime + 0.4;
-      playRhythm(pattern2, 110, gap);
+      playRhythm(pattern2, bpm, gap);
     },
     options: ['Same', 'Different'],
     correct: changeRhythm ? 'Different' : 'Same',
@@ -1231,18 +1356,38 @@ function generateRhythmQuestion() {
 }
 
 function generateTextureQuestion() {
-  // Five clearly distinct timbres — listeners learn to tell apart
-  // attack shape, brightness, and sustain, not just oscillator count.
-  const INSTRUMENTS = [
+  const diff = state.difficulty;
+
+  // All five instruments ordered from most to least distinct in timbre.
+  // Beginner pairs have very different attack/sustain (piano vs strings).
+  // Mozart may pair similar timbres (flute + strings both have slow attacks).
+  const ALL_INSTS = [
     { name: 'piano',   synth: synthPiano   },
-    { name: 'guitar',  synth: synthGuitar  },
-    { name: 'strings', synth: synthStrings },
-    { name: 'flute',   synth: synthFlute   },
     { name: 'marimba', synth: synthMarimba },
+    { name: 'guitar',  synth: synthGuitar  },
+    { name: 'flute',   synth: synthFlute   },
+    { name: 'strings', synth: synthStrings },
   ];
 
-  // Chord voicings in different keys so the same set can repeat
-  // without sounding identical.
+  // Max instrument count and whether to shuffle freely (mozart) or
+  // prefer maximally different timbres (beginner).
+  const CFG = {
+    beginner:     { maxCount: 2, freeShuf: false },
+    intermediate: { maxCount: 3, freeShuf: false },
+    advanced:     { maxCount: 4, freeShuf: true  },
+    mozart:       { maxCount: 4, freeShuf: true  },
+  };
+  const { maxCount, freeShuf } = CFG[diff];
+
+  const count = 1 + Math.floor(Math.random() * maxCount);
+
+  // Beginner/intermediate: keep instruments in their sorted-by-distinctness order
+  // so the pool always starts with the most distinguishable pair.
+  const pool = freeShuf
+    ? [...ALL_INSTS].sort(() => Math.random() - 0.5)
+    : ALL_INSTS;
+  const insts = pool.slice(0, count);
+
   const CHORDS = [
     [NOTES.C4, NOTES.E4, NOTES.G4, NOTES.B4],
     [NOTES.D4, NOTES.F4, NOTES.A4, NOTES.C5],
@@ -1251,20 +1396,15 @@ function generateTextureQuestion() {
     [NOTES.F4, NOTES.A4, NOTES.C5, NOTES.E5],
     [NOTES.E4, NOTES.G4, NOTES.B4, NOTES.D5],
   ];
-
-  // 1–4 instruments playing simultaneously (held notes, not sequences),
-  // which is much closer to what real ear-training tests use.
-  const count = 1 + Math.floor(Math.random() * 4);
-  const insts = [...INSTRUMENTS].sort(() => Math.random() - 0.5).slice(0, count);
   const chord = CHORDS[Math.floor(Math.random() * CHORDS.length)];
-  const holdDur = 2.2; // seconds each note is sustained
+  const holdDur = 2.2;
 
   return {
     type: 'texture',
     text: 'How many instruments are playing at the same time?',
     play: () => {
-      const ctx  = getAudioCtx();
-      const t    = ctx.currentTime + 0.15;
+      const ctx = getAudioCtx();
+      const t   = ctx.currentTime + 0.15;
       insts.forEach((inst, i) => inst.synth(ctx, chord[i], t, holdDur, 0.3));
     },
     options: ['1', '2', '3', '4'],
@@ -1295,6 +1435,13 @@ function generateQuestion(type) {
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+}
+
+function selectDifficulty(d) {
+  state.difficulty = d;
+  ['beginner','intermediate','advanced','mozart'].forEach(id => {
+    document.getElementById('diff-' + id).classList.toggle('active', id === d);
+  });
 }
 
 function goHome() {
@@ -1353,7 +1500,9 @@ function startMode(mode) {
     pitch: '🎯 Pitch', melody: '🎶 Melody',
     rhythm: '🥁 Rhythm', texture: '🎸 Texture', mixed: '🎲 Mixed'
   };
-  document.getElementById('modeBadge').textContent = badges[mode];
+  const diffEmoji = { beginner: '🌱', intermediate: '⭐', advanced: '🔥', mozart: '🎻' };
+  document.getElementById('modeBadge').textContent =
+    `${badges[mode]} ${diffEmoji[state.difficulty]}`;
   document.getElementById('currentScore').textContent = '0';
   updateStreak(0);
 
