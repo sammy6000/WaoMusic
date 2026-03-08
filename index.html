@@ -779,19 +779,30 @@ function maybeShowUnlockOverlay() {
 // ----------------------------------------------------------
 // Called when the user taps "Enable Audio" on the overlay.
 // Everything here runs SYNCHRONOUSLY inside the gesture handler.
+// When iOS interrupts audio (e.g. headphones unplugged), we
+// close the stale context and create a brand-new one — that is
+// the only reliable way to re-unlock the iOS audio session.
 // ----------------------------------------------------------
 function handleUnlockTap() {
-  // 1. Create context synchronously inside the gesture
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  // 1. If the existing context is stale (suspended/interrupted/closed),
+  //    discard it so we start completely fresh inside this gesture.
+  if (audioCtx && audioCtx.state !== 'running') {
+    audioCtx.close().catch(() => {});
+    audioCtx = null;
   }
 
-  // 2. Resume synchronously (no await — keeps us in the gesture)
+  // 2. Create a brand-new context synchronously inside the gesture.
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    attachAudioStateMonitor();
+  }
+
+  // 3. Resume synchronously (no await — keeps us in the gesture)
   if (audioCtx.state === 'suspended') {
     audioCtx.resume(); // intentionally not awaited
   }
 
-  // 3. Schedule a silent 1-sample buffer — this is the magic
+  // 4. Schedule a silent 1-sample buffer — this is the magic
   //    incantation that fully ungates iOS audio output.
   const silentBuf = audioCtx.createBuffer(1, 1, 22050);
   const silentSrc = audioCtx.createBufferSource();
@@ -809,6 +820,23 @@ function handleUnlockTap() {
 }
 
 // ----------------------------------------------------------
+// Watch for iOS audio session interruptions (e.g. headphones
+// unplugged, phone call, Siri). When the context goes suspended
+// after being unlocked, we re-show the overlay so the user can
+// tap once to re-unlock for the new audio route.
+// ----------------------------------------------------------
+function attachAudioStateMonitor() {
+  if (!audioCtx) return;
+  audioCtx.onstatechange = function () {
+    if (audioUnlocked && audioCtx.state === 'suspended') {
+      // Mark as needing re-unlock
+      audioUnlocked = false;
+      document.getElementById('audioUnlockOverlay').classList.add('visible');
+    }
+  };
+}
+
+// ----------------------------------------------------------
 // Get (or create) a running AudioContext.
 // On iOS the context may auto-suspend between interactions;
 // we call resume() synchronously here too.
@@ -818,6 +846,7 @@ function getAudioCtx() {
     // Fallback creation — will be silently blocked on iOS until
     // the user has tapped the unlock overlay, but won't crash.
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    attachAudioStateMonitor();
   }
   // Synchronous resume — safe to call even when already running
   if (audioCtx.state === 'suspended') {
