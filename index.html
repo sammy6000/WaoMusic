@@ -947,6 +947,120 @@ function playDrum(startTime, volume = 0.5) {
   source.start(startTime);
 }
 
+// ============================================================
+// Instrument synthesis — distinct timbres for each instrument
+// type. Each function schedules audio on the given AudioContext.
+// ============================================================
+
+function synthPiano(ctx, freq, startTime, duration, vol = 0.4) {
+  // Two slightly detuned sawtooths + lowpass + fast exponential
+  // decay mimics hammer-strike transient and string resonance.
+  [0, 1.5].forEach(detune => {
+    const osc  = ctx.createOscillator();
+    const filt = ctx.createBiquadFilter();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.value = freq;
+    osc.detune.value = detune;
+    filt.type = 'lowpass';
+    filt.frequency.value = freq * 6;
+    osc.connect(filt); filt.connect(gain); gain.connect(ctx.destination);
+    gain.gain.setValueAtTime(vol * 0.75, startTime);
+    gain.gain.exponentialRampToValueAtTime(vol * 0.15, startTime + 0.35);
+    gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+    osc.start(startTime); osc.stop(startTime + duration + 0.05);
+  });
+}
+
+function synthGuitar(ctx, freq, startTime, duration, vol = 0.4) {
+  // Plucked string: bright sawtooth attack that quickly darkens,
+  // simulating the pick transient then string resonance decay.
+  const osc  = ctx.createOscillator();
+  const filt = ctx.createBiquadFilter();
+  const gain = ctx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.value = freq;
+  filt.type = 'lowpass';
+  filt.frequency.setValueAtTime(freq * 9, startTime);
+  filt.frequency.exponentialRampToValueAtTime(freq * 2, startTime + 0.18);
+  osc.connect(filt); filt.connect(gain); gain.connect(ctx.destination);
+  gain.gain.setValueAtTime(vol, startTime);
+  gain.gain.exponentialRampToValueAtTime(vol * 0.25, startTime + 0.2);
+  gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+  osc.start(startTime); osc.stop(startTime + duration + 0.05);
+}
+
+function synthStrings(ctx, freq, startTime, duration, vol = 0.4) {
+  // Bowed string (violin/viola): slow swell attack + subtle vibrato.
+  const osc     = ctx.createOscillator();
+  const lfo     = ctx.createOscillator();
+  const lfoGain = ctx.createGain();
+  const gain    = ctx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.value = freq;
+  lfo.type = 'sine'; lfo.frequency.value = 5.5;
+  lfoGain.gain.value = 6; // cents of vibrato depth
+  lfo.connect(lfoGain); lfoGain.connect(osc.detune);
+  osc.connect(gain); gain.connect(ctx.destination);
+  gain.gain.setValueAtTime(0.001, startTime);
+  gain.gain.linearRampToValueAtTime(vol, startTime + 0.45);
+  gain.gain.setValueAtTime(vol, startTime + duration - 0.15);
+  gain.gain.linearRampToValueAtTime(0, startTime + duration);
+  lfo.start(startTime); lfo.stop(startTime + duration + 0.05);
+  osc.start(startTime); osc.stop(startTime + duration + 0.05);
+}
+
+function synthFlute(ctx, freq, startTime, duration, vol = 0.4) {
+  // Pure sine (flute body) + bandpass-filtered breath noise.
+  const osc  = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine'; osc.frequency.value = freq;
+  osc.connect(gain); gain.connect(ctx.destination);
+  gain.gain.setValueAtTime(0.001, startTime);
+  gain.gain.linearRampToValueAtTime(vol, startTime + 0.18);
+  gain.gain.setValueAtTime(vol, startTime + duration - 0.05);
+  gain.gain.linearRampToValueAtTime(0, startTime + duration);
+  osc.start(startTime); osc.stop(startTime + duration + 0.05);
+  // Breath noise layer
+  const len  = Math.ceil(ctx.sampleRate * duration);
+  const buf  = ctx.createBuffer(1, len, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+  const nSrc = ctx.createBufferSource();
+  const bp   = ctx.createBiquadFilter();
+  const ng   = ctx.createGain();
+  nSrc.buffer = buf; bp.type = 'bandpass';
+  bp.frequency.value = freq; bp.Q.value = 5;
+  nSrc.connect(bp); bp.connect(ng); ng.connect(ctx.destination);
+  ng.gain.value = vol * 0.06;
+  nSrc.start(startTime); nSrc.stop(startTime + duration);
+}
+
+function synthMarimba(ctx, freq, startTime, duration, vol = 0.4) {
+  // Mallet on wood: sine with fast exponential decay and brief
+  // pitch-drop transient for the characteristic "thud".
+  const osc  = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(freq * 1.06, startTime);
+  osc.frequency.exponentialRampToValueAtTime(freq, startTime + 0.04);
+  osc.connect(gain); gain.connect(ctx.destination);
+  gain.gain.setValueAtTime(vol, startTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, startTime + Math.min(duration, 0.9));
+  osc.start(startTime); osc.stop(startTime + Math.min(duration, 0.95));
+}
+
+// Play a sequence using a synth function instead of a raw oscillator type.
+function playInstrumentSequence(noteFreqs, bpm = 120, synthFn, startDelay = 0) {
+  const ctx = getAudioCtx();
+  const now = ctx.currentTime + 0.1 + startDelay;
+  const beatDur = 60 / bpm;
+  noteFreqs.forEach((freq, i) => {
+    if (freq > 0) synthFn(ctx, freq, now + i * beatDur, beatDur * 0.85, 0.35);
+  });
+  return now + noteFreqs.length * beatDur;
+}
+
 // Note frequencies
 const NOTES = {
   C4: 261.63, D4: 293.66, E4: 329.63, F4: 349.23,
@@ -1016,8 +1130,8 @@ function generatePitchQuestion() {
     play: () => {
       const ctx = getAudioCtx();
       const now = ctx.currentTime + 0.1;
-      playNote(NOTES[note1], now, 0.7, 'sine');
-      playNote(NOTES[note2], now + 0.9, 0.7, 'sine');
+      synthPiano(ctx, NOTES[note1], now, 0.7);
+      synthPiano(ctx, NOTES[note2], now + 0.9, 0.7);
     },
     options: ['Higher ↑', 'Lower ↓'],
     correct: isHigher ? 'Higher ↑' : 'Lower ↓',
@@ -1052,10 +1166,10 @@ function generateMelodyQuestion() {
       const ctx = getAudioCtx();
       const freqs1 = melody1.map(n => NOTES[n]);
       const freqs2 = melody2.map(n => NOTES[n]);
-      const end1 = playSequence(freqs1, 130, 'triangle');
+      const end1 = playInstrumentSequence(freqs1, 130, synthPiano);
       if (playBoth) {
         const gap = end1 - ctx.currentTime + 0.3;
-        playSequence(freqs2, 130, 'triangle', gap);
+        playInstrumentSequence(freqs2, 130, synthPiano, gap);
       }
     },
     options: ['Same', 'Different'],
@@ -1072,13 +1186,19 @@ function generateMelodyQuestion() {
 function generateRhythmQuestion() {
   const len = 8;
   const patterns = [
-    [1,0,1,0,1,0,1,0],
-    [1,1,0,1,1,0,1,0],
-    [1,0,0,1,0,0,1,0],
-    [1,1,1,0,1,1,1,0],
-    [1,0,1,1,0,1,0,0],
-    [1,0,0,0,1,0,1,0],
-    [1,1,0,0,1,0,1,1],
+    // Straight / march
+    [1,0,1,0,1,0,1,0], [1,0,0,0,1,0,0,0], [1,0,0,1,0,0,1,0],
+    [1,1,0,0,1,1,0,0], [1,0,1,0,0,1,0,0], [1,0,0,0,1,0,1,0],
+    // Forward-accented
+    [1,1,0,1,1,0,1,0], [1,1,1,0,1,1,1,0], [1,0,1,1,0,0,1,0],
+    [1,1,1,1,0,0,0,0], [1,0,0,1,1,1,0,0], [1,1,0,0,0,1,0,0],
+    // Syncopated
+    [0,0,1,0,0,0,1,0], [1,0,0,1,1,0,0,1], [0,1,0,1,0,1,0,1],
+    [1,0,0,1,0,1,0,0], [0,1,0,0,1,0,1,0], [1,0,1,0,0,0,1,1],
+    [1,1,0,0,1,0,1,1], [0,0,1,1,0,1,0,0], [1,0,0,1,0,0,0,1],
+    // Dense / complex
+    [1,1,0,1,0,1,1,0], [1,0,1,1,0,1,0,1], [0,1,1,0,1,0,0,1],
+    [1,1,1,0,0,1,0,0], [1,0,1,0,1,1,0,0],
   ];
 
   const pattern1 = patterns[Math.floor(Math.random() * patterns.length)].slice();
@@ -1111,40 +1231,48 @@ function generateRhythmQuestion() {
 }
 
 function generateTextureQuestion() {
-  const options = [
-    { count: 1, label: '1 instrument', play: () => {
-      playSequence([NOTES.C4, NOTES.E4, NOTES.G4, NOTES.C5], 100, 'sine');
-    }},
-    { count: 2, label: '2 instruments', play: () => {
-      playSequence([NOTES.C4, NOTES.E4, NOTES.G4, NOTES.C5], 100, 'sine');
-      playSequence([NOTES.G3, NOTES.C4, NOTES.E4, NOTES.G4], 100, 'triangle');
-    }},
-    { count: 3, label: '3 instruments', play: () => {
-      playSequence([NOTES.C4, NOTES.E4, NOTES.G4, NOTES.C5], 100, 'sine');
-      playSequence([NOTES.G3, NOTES.C4, NOTES.E4, NOTES.G4], 100, 'triangle');
-      playSequence([NOTES.E3, NOTES.A3, NOTES.C4, NOTES.E4], 100, 'square', 0);
-    }},
+  // Five clearly distinct timbres — listeners learn to tell apart
+  // attack shape, brightness, and sustain, not just oscillator count.
+  const INSTRUMENTS = [
+    { name: 'piano',   synth: synthPiano   },
+    { name: 'guitar',  synth: synthGuitar  },
+    { name: 'strings', synth: synthStrings },
+    { name: 'flute',   synth: synthFlute   },
+    { name: 'marimba', synth: synthMarimba },
   ];
 
-  const chosen = options[Math.floor(Math.random() * options.length)];
-
-  const questions = [
-    { text: 'How many instruments are playing?', answers: ['1', '2', '3'], correct: String(chosen.count) },
-    { text: 'Listen carefully. How many different sounds can you hear?', answers: ['One', 'Two', 'Three'], correct: ['One','Two','Three'][chosen.count - 1] },
+  // Chord voicings in different keys so the same set can repeat
+  // without sounding identical.
+  const CHORDS = [
+    [NOTES.C4, NOTES.E4, NOTES.G4, NOTES.B4],
+    [NOTES.D4, NOTES.F4, NOTES.A4, NOTES.C5],
+    [NOTES.G3, NOTES.B3, NOTES.D4, NOTES.F4],
+    [NOTES.A3, NOTES.C4, NOTES.E4, NOTES.G4],
+    [NOTES.F4, NOTES.A4, NOTES.C5, NOTES.E5],
+    [NOTES.E4, NOTES.G4, NOTES.B4, NOTES.D5],
   ];
 
-  const q = questions[Math.floor(Math.random() * questions.length)];
+  // 1–4 instruments playing simultaneously (held notes, not sequences),
+  // which is much closer to what real ear-training tests use.
+  const count = 1 + Math.floor(Math.random() * 4);
+  const insts = [...INSTRUMENTS].sort(() => Math.random() - 0.5).slice(0, count);
+  const chord = CHORDS[Math.floor(Math.random() * CHORDS.length)];
+  const holdDur = 2.2; // seconds each note is sustained
 
   return {
     type: 'texture',
-    text: q.text,
-    play: chosen.play,
-    options: q.answers,
-    correct: q.correct,
-    explanation: `There were ${chosen.count} instrument${chosen.count > 1 ? 's' : ''} playing.`,
+    text: 'How many instruments are playing at the same time?',
+    play: () => {
+      const ctx  = getAudioCtx();
+      const t    = ctx.currentTime + 0.15;
+      insts.forEach((inst, i) => inst.synth(ctx, chord[i], t, holdDur, 0.3));
+    },
+    options: ['1', '2', '3', '4'],
+    correct: String(count),
+    explanation: `${count} instrument${count > 1 ? 's' : ''} playing: ${insts.map(i => i.name).join(', ')}.`,
     optionLayout: 'two-col',
     visualiser: null,
-    count: chosen.count,
+    count,
   };
 }
 
@@ -1197,8 +1325,28 @@ function startMode(mode) {
   state.questions = [];
   state.sessionResults = { pitch: [], melody: [], rhythm: [], texture: [] };
 
+  // Generate questions while avoiding consecutive identical answers
+  // or consecutive same question types (in mixed mode).
+  const recentAnswers = [];
+  const recentTypes   = [];
   for (let i = 0; i < state.totalQuestions; i++) {
-    state.questions.push(generateQuestion(mode));
+    let q, tries = 0;
+    do {
+      q = generateQuestion(mode);
+      tries++;
+      // Retry if the last 2 answers were the same as this one, or
+      // (in mixed mode) if the same type just appeared back-to-back.
+      const sameAnswer = recentAnswers.length >= 2 &&
+        recentAnswers.slice(-2).every(a => a === q.correct);
+      const sameType = mode === 'mixed' &&
+        recentTypes[recentTypes.length - 1] === q.type;
+    } while (tries < 8 && (
+      recentAnswers.length >= 2 && recentAnswers.slice(-2).every(a => a === q.correct) ||
+      mode === 'mixed' && recentTypes[recentTypes.length - 1] === q.type
+    ));
+    recentAnswers.push(q.correct);
+    recentTypes.push(q.type);
+    state.questions.push(q);
   }
 
   const badges = {
