@@ -777,7 +777,7 @@ body::before {
         </div>
         <div style="display:flex;gap:12px;align-items:flex-start">
           <span style="font-size:1.5rem">🎸</span>
-          <div><strong style="color:var(--texture)">Texture</strong><br><span style="font-size:0.85rem;color:var(--muted)">How many instruments are playing? Did the number change?</span></div>
+          <div><strong style="color:var(--texture)">Texture</strong><br><span style="font-size:0.85rem;color:var(--muted)">An electronic keyboard plays a chord. How many notes (2, 3 or 4) are sounding at once? This is the hardest section — especially if you only play a single-note instrument.</span></div>
         </div>
       </div>
     </div>
@@ -1090,6 +1090,27 @@ function synthFlute(ctx, freq, startTime, duration, vol = 0.4) {
   nSrc.start(startTime); nSrc.stop(startTime + duration);
 }
 
+// Neutral electronic keyboard — used for ALL chord notes in texture
+// questions so timbre gives no clue: only pitch density matters.
+function synthElectronic(ctx, freq, startTime, duration, vol = 0.35) {
+  // Sine base + quiet triangle second harmonic for slight body.
+  const sine  = ctx.createOscillator();
+  const tri   = ctx.createOscillator();
+  const gTri  = ctx.createGain();
+  const gain  = ctx.createGain();
+  sine.type = 'sine';  sine.frequency.value = freq;
+  tri.type  = 'triangle'; tri.frequency.value = freq;
+  gTri.gain.value = 0.12;
+  tri.connect(gTri); gTri.connect(gain);
+  sine.connect(gain); gain.connect(ctx.destination);
+  gain.gain.setValueAtTime(0, startTime);
+  gain.gain.linearRampToValueAtTime(vol, startTime + 0.04);
+  gain.gain.setValueAtTime(vol, startTime + duration - 0.07);
+  gain.gain.linearRampToValueAtTime(0, startTime + duration);
+  sine.start(startTime); sine.stop(startTime + duration + 0.05);
+  tri.start(startTime);  tri.stop(startTime + duration + 0.05);
+}
+
 function synthMarimba(ctx, freq, startTime, duration, vol = 0.4) {
   // Mallet on wood: sine with fast exponential decay and brief
   // pitch-drop transient for the characteristic "thud".
@@ -1377,61 +1398,85 @@ function generateRhythmQuestion() {
 function generateTextureQuestion() {
   const diff = state.difficulty;
 
-  // All five instruments ordered from most to least distinct in timbre.
-  // Beginner pairs have very different attack/sustain (piano vs strings).
-  // Mozart may pair similar timbres (flute + strings both have slow attacks).
-  const ALL_INSTS = [
-    { name: 'piano',   synth: synthPiano   },
-    { name: 'marimba', synth: synthMarimba },
-    { name: 'guitar',  synth: synthGuitar  },
-    { name: 'flute',   synth: synthFlute   },
-    { name: 'strings', synth: synthStrings },
-  ];
-
-  // Max instrument count and whether to shuffle freely (mozart) or
-  // prefer maximally different timbres (beginner).
-  const CFG = {
-    beginner:     { maxCount: 2, freeShuf: false },
-    intermediate: { maxCount: 3, freeShuf: false },
-    advanced:     { maxCount: 4, freeShuf: true  },
-    mozart:       { maxCount: 4, freeShuf: true  },
+  // The MAT plays a chord on one consistent electronic keyboard sound and
+  // asks how many notes (2, 3, or 4) are in the chord. Using the same timbre
+  // for every note means the ONLY cue is pitch density — exactly what
+  // children who play single-note instruments find hardest.
+  //
+  // Intervals are in semitones above the root.
+  // Wider intervals → easier to pull apart; tighter clusters → harder.
+  const CHORD_POOLS = {
+    beginner: [
+      // 1 note sometimes so the answer '1' is occasionally correct.
+      { n: 1, ivl: [0]        },
+      { n: 1, ivl: [0]        },
+      { n: 2, ivl: [0, 12]    },  // octave   — very wide, easy
+      { n: 2, ivl: [0,  9]    },  // maj 6th
+      { n: 2, ivl: [0,  7]    },  // perf 5th
+      { n: 2, ivl: [0,  5]    },  // perf 4th
+    ],
+    intermediate: [
+      { n: 2, ivl: [0, 4]      },  // maj 3rd
+      { n: 2, ivl: [0, 3]      },  // min 3rd
+      { n: 2, ivl: [0, 7]      },  // perf 5th
+      { n: 3, ivl: [0, 4,  7]  },  // major triad
+      { n: 3, ivl: [0, 3,  7]  },  // minor triad
+      { n: 3, ivl: [0, 4,  8]  },  // augmented
+    ],
+    advanced: [
+      { n: 3, ivl: [0, 4,  7]       },  // major triad
+      { n: 3, ivl: [0, 3,  7]       },  // minor triad
+      { n: 3, ivl: [0, 3,  6]       },  // diminished
+      { n: 4, ivl: [0, 4,  7, 11]   },  // major 7th
+      { n: 4, ivl: [0, 3,  7, 10]   },  // minor 7th
+      { n: 4, ivl: [0, 4,  7, 10]   },  // dominant 7th
+      { n: 4, ivl: [0, 3,  6,  9]   },  // diminished 7th
+    ],
+    mozart: [
+      // Clusters with semitones / whole-tones mixed in — genuinely hard.
+      { n: 3, ivl: [0, 1,  4]       },  // semitone in triad
+      { n: 3, ivl: [0, 2,  5]       },  // tight whole-tone cluster
+      { n: 4, ivl: [0, 2,  4,  7]   },  // added 2nd
+      { n: 4, ivl: [0, 1,  4,  7]   },  // semitone + triad
+      { n: 4, ivl: [0, 2,  3,  7]   },  // half-step cluster
+      { n: 4, ivl: [0, 1,  2,  7]   },  // three semitones
+      { n: 4, ivl: [0, 4,  7, 11]   },  // major 7th (already hard)
+      { n: 4, ivl: [0, 3,  6,  9]   },  // diminished 7th (equal intervals)
+    ],
   };
-  const { maxCount, freeShuf } = CFG[diff];
 
-  const count = 1 + Math.floor(Math.random() * maxCount);
+  // Roots kept in the middle octave so all chord notes stay in a natural range.
+  const ROOTS = ['C4','D4','E4','F4','G4'];
+  const root  = randomNote(ROOTS);
+  const rootSt = NOTE_ST[root];
 
-  // Beginner/intermediate: keep instruments in their sorted-by-distinctness order
-  // so the pool always starts with the most distinguishable pair.
-  const pool = freeShuf
-    ? [...ALL_INSTS].sort(() => Math.random() - 0.5)
-    : ALL_INSTS;
-  const insts = pool.slice(0, count);
+  const pool  = CHORD_POOLS[diff];
+  const chord = pool[Math.floor(Math.random() * pool.length)];
 
-  const CHORDS = [
-    [NOTES.C4, NOTES.E4, NOTES.G4, NOTES.B4],
-    [NOTES.D4, NOTES.F4, NOTES.A4, NOTES.C5],
-    [NOTES.G3, NOTES.B3, NOTES.D4, NOTES.F4],
-    [NOTES.A3, NOTES.C4, NOTES.E4, NOTES.G4],
-    [NOTES.F4, NOTES.A4, NOTES.C5, NOTES.E5],
-    [NOTES.E4, NOTES.G4, NOTES.B4, NOTES.D5],
-  ];
-  const chord = CHORDS[Math.floor(Math.random() * CHORDS.length)];
-  const holdDur = 2.2;
+  // Resolve interval offsets to actual note names.
+  const noteNames = chord.ivl.map(st => {
+    const target = rootSt + st;
+    return Object.keys(NOTE_ST).find(n => NOTE_ST[n] === target);
+  }).filter(Boolean);
+
+  const holdDur = 2.5;
 
   return {
     type: 'texture',
-    text: 'How many instruments are playing at the same time?',
+    text: 'How many notes are in the chord?',
     play: () => {
       const ctx = getAudioCtx();
       const t   = ctx.currentTime + 0.15;
-      insts.forEach((inst, i) => inst.synth(ctx, chord[i], t, holdDur, 0.3));
+      noteNames.forEach(n => synthElectronic(ctx, NOTES[n], t, holdDur, 0.32));
     },
     options: ['1', '2', '3', '4'],
-    correct: String(count),
-    explanation: `${count} instrument${count > 1 ? 's' : ''} playing: ${insts.map(i => i.name).join(', ')}.`,
+    correct: String(chord.n),
+    explanation: chord.n === 1
+      ? `Just 1 note: ${prettyNote(noteNames[0])}.`
+      : `${chord.n} notes: ${noteNames.map(prettyNote).join(' + ')}.`,
     optionLayout: 'two-col',
     visualiser: null,
-    count,
+    count: chord.n,
   };
 }
 
