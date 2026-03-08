@@ -1,0 +1,1406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wao's Music Lab</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Fredoka+One&display=swap');
+
+:root {
+  --bg: #0f0e1a;
+  --surface: #1a1830;
+  --card: #231f3d;
+  --pitch: #ff6b9d;
+  --melody: #a78bfa;
+  --rhythm: #34d399;
+  --texture: #fbbf24;
+  --white: #f0eeff;
+  --muted: #7c6fa0;
+  --correct: #34d399;
+  --wrong: #f87171;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Nunito', sans-serif;
+  background: var(--bg);
+  color: var(--white);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Animated starfield background */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(1px 1px at 20% 30%, rgba(167,139,250,0.4) 0%, transparent 100%),
+    radial-gradient(1px 1px at 60% 70%, rgba(255,107,157,0.3) 0%, transparent 100%),
+    radial-gradient(1px 1px at 80% 20%, rgba(52,211,153,0.3) 0%, transparent 100%),
+    radial-gradient(2px 2px at 40% 80%, rgba(251,191,36,0.2) 0%, transparent 100%),
+    radial-gradient(1px 1px at 90% 50%, rgba(167,139,250,0.3) 0%, transparent 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+#app { position: relative; z-index: 1; }
+
+/* SCREENS */
+.screen { display: none; min-height: 100vh; }
+.screen.active { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
+
+/* HOME SCREEN */
+.logo {
+  font-family: 'Fredoka One', cursive;
+  font-size: clamp(2.5rem, 8vw, 4rem);
+  background: linear-gradient(135deg, var(--pitch), var(--melody), var(--texture));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-align: center;
+  line-height: 1.1;
+  margin-bottom: 8px;
+}
+
+.subtitle {
+  color: var(--muted);
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 40px;
+  letter-spacing: 0.05em;
+}
+
+.mode-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  width: 100%;
+  max-width: 480px;
+  margin-bottom: 32px;
+}
+
+.mode-card {
+  background: var(--card);
+  border-radius: 20px;
+  padding: 24px 16px;
+  text-align: center;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.mode-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.2s;
+  border-radius: 18px;
+}
+
+.mode-card:hover { transform: translateY(-3px); border-color: currentColor; }
+.mode-card:hover::before { opacity: 0.08; }
+
+.mode-card.pitch { color: var(--pitch); }
+.mode-card.pitch::before { background: var(--pitch); }
+.mode-card.melody { color: var(--melody); }
+.mode-card.melody::before { background: var(--melody); }
+.mode-card.rhythm { color: var(--rhythm); }
+.mode-card.rhythm::before { background: var(--rhythm); }
+.mode-card.texture { color: var(--texture); }
+.mode-card.texture::before { background: var(--texture); }
+
+.mode-icon { font-size: 2.5rem; margin-bottom: 10px; }
+.mode-name { font-family: 'Fredoka One', cursive; font-size: 1.2rem; margin-bottom: 4px; }
+.mode-desc { font-size: 0.75rem; color: var(--muted); font-weight: 600; }
+
+.mode-card .mode-score {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  opacity: 0.7;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--melody), var(--pitch));
+  border: none;
+  border-radius: 50px;
+  padding: 16px 48px;
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.3rem;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 20px rgba(167,139,250,0.4);
+}
+
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(167,139,250,0.5); }
+.btn-primary:active { transform: translateY(0); }
+
+.btn-secondary {
+  background: var(--card);
+  border: 2px solid var(--muted);
+  border-radius: 50px;
+  padding: 12px 32px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 12px;
+}
+.btn-secondary:hover { border-color: var(--white); color: var(--white); }
+
+/* GAME SCREEN */
+.game-header {
+  width: 100%;
+  max-width: 600px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.game-mode-badge {
+  font-family: 'Fredoka One', cursive;
+  font-size: 1rem;
+  padding: 6px 16px;
+  border-radius: 50px;
+  background: var(--card);
+}
+
+.score-display {
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.1rem;
+  color: var(--melody);
+}
+
+.progress-bar {
+  width: 100%;
+  max-width: 600px;
+  height: 6px;
+  background: var(--card);
+  border-radius: 10px;
+  margin-bottom: 32px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 10px;
+  background: linear-gradient(90deg, var(--melody), var(--pitch));
+  transition: width 0.4s ease;
+}
+
+.question-card {
+  background: var(--card);
+  border-radius: 24px;
+  padding: 32px 28px;
+  width: 100%;
+  max-width: 600px;
+  text-align: center;
+  margin-bottom: 24px;
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+.question-number {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.question-text {
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.4;
+  margin-bottom: 24px;
+  color: var(--white);
+}
+
+/* PLAY BUTTON */
+.play-btn {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  margin: 0 auto 8px;
+  transition: all 0.2s;
+  position: relative;
+  /* Prevent iOS callout / selection highlight on long-press */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+
+.play-btn.playing {
+  animation: pulse-play 1s ease-in-out infinite;
+}
+
+@keyframes pulse-play {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+.play-btn-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 20px;
+}
+
+.play-btn.pitch-btn { background: linear-gradient(135deg, var(--pitch), #ff4d7e); box-shadow: 0 4px 20px rgba(255,107,157,0.4); }
+.play-btn.melody-btn { background: linear-gradient(135deg, var(--melody), #7c3aed); box-shadow: 0 4px 20px rgba(167,139,250,0.4); }
+.play-btn.rhythm-btn { background: linear-gradient(135deg, var(--rhythm), #059669); box-shadow: 0 4px 20px rgba(52,211,153,0.4); }
+.play-btn.texture-btn { background: linear-gradient(135deg, var(--texture), #d97706); box-shadow: 0 4px 20px rgba(251,191,36,0.4); }
+
+.multi-play {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.multi-play .play-btn { width: 60px; height: 60px; font-size: 1.5rem; }
+.multi-play-labels {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.multi-play-labels span {
+  width: 60px;
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+/* ANSWER OPTIONS */
+.options-grid {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  max-width: 600px;
+}
+
+.options-grid.two-col { grid-template-columns: 1fr 1fr; }
+.options-grid.one-col { grid-template-columns: 1fr; }
+
+.option-btn {
+  background: var(--surface);
+  border: 2px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  padding: 16px 20px;
+  font-family: 'Nunito', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--white);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.option-btn:hover:not(:disabled) {
+  background: var(--card);
+  border-color: var(--melody);
+  transform: translateY(-1px);
+}
+
+.option-btn.correct {
+  background: rgba(52,211,153,0.15);
+  border-color: var(--correct);
+  color: var(--correct);
+}
+
+.option-btn.wrong {
+  background: rgba(248,113,113,0.15);
+  border-color: var(--wrong);
+  color: var(--wrong);
+}
+
+.option-btn:disabled { cursor: default; transform: none; }
+
+/* FEEDBACK */
+.feedback-banner {
+  width: 100%;
+  max-width: 600px;
+  padding: 14px 20px;
+  border-radius: 14px;
+  font-weight: 800;
+  font-size: 1rem;
+  text-align: center;
+  margin-bottom: 16px;
+  display: none;
+}
+
+.feedback-banner.correct {
+  background: rgba(52,211,153,0.15);
+  border: 1px solid var(--correct);
+  color: var(--correct);
+  display: block;
+}
+
+.feedback-banner.wrong {
+  background: rgba(248,113,113,0.15);
+  border: 1px solid var(--wrong);
+  color: var(--wrong);
+  display: block;
+}
+
+.next-btn {
+  background: linear-gradient(135deg, var(--melody), var(--pitch));
+  border: none;
+  border-radius: 50px;
+  padding: 14px 40px;
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.1rem;
+  color: white;
+  cursor: pointer;
+  display: none;
+  transition: all 0.2s;
+  box-shadow: 0 4px 16px rgba(167,139,250,0.3);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.next-btn.visible { display: inline-block; }
+.next-btn:hover { transform: translateY(-2px); }
+
+/* RHYTHM VISUALISER */
+.rhythm-display {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  align-items: flex-end;
+  height: 60px;
+  margin-bottom: 20px;
+}
+
+.beat-block {
+  border-radius: 6px;
+  transition: all 0.1s;
+  opacity: 0.3;
+}
+
+.beat-block.active { opacity: 1; transform: scaleY(1.3); }
+
+/* PITCH VISUALISER */
+.pitch-display {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 20px;
+  height: 80px;
+}
+
+.pitch-note {
+  width: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 800;
+  transition: all 0.3s;
+  opacity: 0.3;
+}
+
+.pitch-note.active { opacity: 1; transform: scale(1.1); }
+
+/* RESULTS SCREEN */
+.results-circle {
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: var(--card);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 24px;
+  border: 4px solid var(--melody);
+  box-shadow: 0 0 40px rgba(167,139,250,0.3);
+}
+
+.results-score {
+  font-family: 'Fredoka One', cursive;
+  font-size: 3rem;
+  color: var(--melody);
+  line-height: 1;
+}
+
+.results-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.results-title {
+  font-family: 'Fredoka One', cursive;
+  font-size: 2rem;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.results-message {
+  color: var(--muted);
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 32px;
+  font-size: 0.95rem;
+}
+
+.results-breakdown {
+  width: 100%;
+  max-width: 480px;
+  background: var(--card);
+  border-radius: 20px;
+  padding: 20px;
+  margin-bottom: 28px;
+}
+
+.breakdown-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.breakdown-row:last-child { border-bottom: none; }
+.breakdown-name { font-weight: 700; font-size: 0.9rem; }
+.breakdown-stars { font-size: 1.1rem; letter-spacing: 2px; }
+
+/* STREAK */
+.streak-badge {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: var(--card);
+  border: 2px solid var(--texture);
+  border-radius: 50px;
+  padding: 6px 14px;
+  font-family: 'Fredoka One', cursive;
+  font-size: 0.9rem;
+  color: var(--texture);
+  z-index: 10;
+  display: none;
+}
+
+/* ============================================================
+   iOS AUDIO UNLOCK OVERLAY
+   Shown on first load on iOS/Safari so the user makes a
+   deliberate tap that we can use to ungate the AudioContext.
+   ============================================================ */
+#audioUnlockOverlay {
+  display: none; /* shown via JS when needed */
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(15,14,26,0.92);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 20px;
+  text-align: center;
+  padding: 32px;
+}
+
+#audioUnlockOverlay.visible {
+  display: flex;
+}
+
+.unlock-icon {
+  font-size: 4rem;
+  animation: bounce 1.2s ease-in-out infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+
+.unlock-title {
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.8rem;
+  color: var(--white);
+}
+
+.unlock-sub {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--muted);
+  max-width: 280px;
+}
+
+.unlock-btn {
+  background: linear-gradient(135deg, var(--melody), var(--pitch));
+  border: none;
+  border-radius: 50px;
+  padding: 18px 56px;
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.4rem;
+  color: white;
+  cursor: pointer;
+  box-shadow: 0 4px 24px rgba(167,139,250,0.5);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* CONFETTI */
+.confetti-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.confetti-piece {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  animation: confetti-fall 3s ease-in forwards;
+}
+
+@keyframes confetti-fall {
+  0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+}
+
+/* Animations */
+@keyframes pop-in {
+  0% { transform: scale(0.8); opacity: 0; }
+  60% { transform: scale(1.05); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.pop-in { animation: pop-in 0.3s ease forwards; }
+
+/* Responsive */
+@media (max-width: 400px) {
+  .mode-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .mode-card { padding: 16px 10px; }
+  .options-grid.two-col { grid-template-columns: 1fr; }
+}
+</style>
+
+</head>
+<body>
+
+<!-- iOS audio unlock overlay (hidden until needed) -->
+<div id="audioUnlockOverlay">
+  <div class="unlock-icon">🎵</div>
+  <div class="unlock-title">Tap to Enable Sound</div>
+  <div class="unlock-sub">Your browser needs a tap before it can play audio.</div>
+  <button class="unlock-btn" onclick="handleUnlockTap()">Enable Audio</button>
+</div>
+
+<div id="streakBadge" class="streak-badge">🔥 <span id="streakCount">0</span></div>
+<div id="confettiContainer" class="confetti-container"></div>
+
+<div id="app">
+
+  <!-- HOME SCREEN -->
+  <div id="homeScreen" class="screen active">
+    <div class="logo">🎵 Wao's<br>Music Lab</div>
+    <p class="subtitle">Train your ears · Ace the test</p>
+
+    <div class="mode-grid">
+      <div class="mode-card pitch" onclick="startMode('pitch')">
+        <div class="mode-score" id="pitchBest"></div>
+        <div class="mode-icon">🎯</div>
+        <div class="mode-name">Pitch</div>
+        <div class="mode-desc">High or Low?</div>
+      </div>
+      <div class="mode-card melody" onclick="startMode('melody')">
+        <div class="mode-score" id="melodyBest"></div>
+        <div class="mode-icon">🎶</div>
+        <div class="mode-name">Melody</div>
+        <div class="mode-desc">Same or Different?</div>
+      </div>
+      <div class="mode-card rhythm" onclick="startMode('rhythm')">
+        <div class="mode-score" id="rhythmBest"></div>
+        <div class="mode-icon">🥁</div>
+        <div class="mode-name">Rhythm</div>
+        <div class="mode-desc">Match the Beat</div>
+      </div>
+      <div class="mode-card texture" onclick="startMode('texture')">
+        <div class="mode-score" id="textureBest"></div>
+        <div class="mode-icon">🎸</div>
+        <div class="mode-name">Texture</div>
+        <div class="mode-desc">How Many Sounds?</div>
+      </div>
+    </div>
+
+    <button class="btn-primary" onclick="startMode('mixed')">🎲 Mixed Challenge</button>
+    <button class="btn-secondary" onclick="showHowToPlay()">How does the real test work?</button>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div id="gameScreen" class="screen">
+    <div class="game-header">
+      <div class="game-mode-badge" id="modeBadge">Pitch</div>
+      <div class="score-display">⭐ <span id="currentScore">0</span></div>
+      <button class="btn-secondary" onclick="goHome()" style="padding:8px 16px;font-size:0.8rem;margin:0">✕ Quit</button>
+    </div>
+
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill" style="width:0%"></div>
+    </div>
+
+    <div class="question-card" id="questionCard">
+      <div class="question-number" id="questionNumber">Question 1 of 10</div>
+      <div id="visualiserArea"></div>
+      <div class="question-text" id="questionText">Loading...</div>
+      <div id="playArea"></div>
+    </div>
+
+    <div class="feedback-banner" id="feedbackBanner"></div>
+    <div class="options-grid" id="optionsGrid"></div>
+    <br>
+    <button class="next-btn" id="nextBtn" onclick="nextQuestion()">Next →</button>
+  </div>
+
+  <!-- RESULTS SCREEN -->
+  <div id="resultsScreen" class="screen">
+    <div class="results-circle pop-in">
+      <div class="results-score" id="finalScore">8/10</div>
+      <div class="results-label">Score</div>
+    </div>
+    <div class="results-title" id="resultsTitle">Amazing! 🌟</div>
+    <div class="results-message" id="resultsMessage">Your ears are getting sharper!</div>
+
+    <div class="results-breakdown" id="resultsBreakdown"></div>
+
+    <button class="btn-primary" onclick="playAgain()">Play Again</button>
+    <button class="btn-secondary" onclick="goHome()">Choose a Mode</button>
+  </div>
+
+  <!-- HOW TO PLAY -->
+  <div id="howScreen" class="screen" style="text-align:left;max-width:560px">
+    <h2 style="font-family:'Fredoka One',cursive;font-size:1.8rem;margin-bottom:20px;text-align:center">The Real Test 📋</h2>
+    <div style="background:var(--card);border-radius:20px;padding:24px;margin-bottom:20px">
+      <p style="font-size:0.9rem;font-weight:600;color:var(--muted);margin-bottom:16px">Ealing Fields, Ada Lovelace and Twyford all use the same format: <strong style="color:var(--white)">60 questions, 4 sections, 1 hour.</strong></p>
+      <div style="display:grid;gap:12px">
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <span style="font-size:1.5rem">🎯</span>
+          <div><strong style="color:var(--pitch)">Pitch</strong><br><span style="font-size:0.85rem;color:var(--muted)">Can you tell if the second note is higher or lower than the first?</span></div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <span style="font-size:1.5rem">🎶</span>
+          <div><strong style="color:var(--melody)">Melody</strong><br><span style="font-size:0.85rem;color:var(--muted)">You hear a short tune twice. Did anything change? Which note was different?</span></div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <span style="font-size:1.5rem">🥁</span>
+          <div><strong style="color:var(--rhythm)">Rhythm</strong><br><span style="font-size:0.85rem;color:var(--muted)">You hear a rhythm twice. Same or different? Which beat changed?</span></div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <span style="font-size:1.5rem">🎸</span>
+          <div><strong style="color:var(--texture)">Texture</strong><br><span style="font-size:0.85rem;color:var(--muted)">How many instruments are playing? Did the number change?</span></div>
+        </div>
+      </div>
+    </div>
+    <div style="background:rgba(167,139,250,0.1);border:1px solid var(--melody);border-radius:16px;padding:16px;margin-bottom:24px">
+      <p style="font-size:0.85rem;color:var(--melody);font-weight:700">💡 The test measures what you naturally hear, not what you've been taught. Playing music helps because it trains your ear without you realising.</p>
+    </div>
+    <button class="btn-primary" onclick="showScreen('homeScreen')" style="width:100%">Got it, let's train!</button>
+  </div>
+
+</div>
+
+<script>
+// ============================================================
+// AUDIO ENGINE — iOS / Safari compatible
+//
+// Key rules for iOS Web Audio:
+//   1. AudioContext must be CREATED inside a user-gesture handler.
+//   2. AudioContext.resume() must also be called inside a user
+//      gesture — async/await breaks the gesture chain on iOS, so
+//      we keep everything synchronous at the point of the tap.
+//   3. A silent 1-sample buffer must be scheduled and started
+//      inside that same gesture to fully ungate the audio graph.
+//   4. On every subsequent play call, check ctx.state and call
+//      ctx.resume() synchronously before scheduling audio nodes.
+// ============================================================
+
+let audioCtx = null;
+let audioUnlocked = false;
+
+// ----------------------------------------------------------
+// Detect iOS / iPadOS Safari so we can show the unlock overlay.
+// navigator.standalone covers "Add to Home Screen" PWA mode.
+// ----------------------------------------------------------
+function isIOSSafari() {
+  const ua = navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(ua) ||
+    // iPadOS 13+ reports as MacIntel but has touch
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isSafari = /Safari/.test(ua) && !/Chrome/.test(ua) && !/CriOS/.test(ua) && !/FxiOS/.test(ua);
+  return isIOS || isSafari; // Be generous — show overlay for all Safari
+}
+
+// ----------------------------------------------------------
+// Show the tap-to-enable overlay on iOS/Safari.
+// Called once on page load.
+// ----------------------------------------------------------
+function maybeShowUnlockOverlay() {
+  if (isIOSSafari()) {
+    document.getElementById('audioUnlockOverlay').classList.add('visible');
+  }
+}
+
+// ----------------------------------------------------------
+// Called when the user taps "Enable Audio" on the overlay.
+// Everything here runs SYNCHRONOUSLY inside the gesture handler.
+// ----------------------------------------------------------
+function handleUnlockTap() {
+  // 1. Create context synchronously inside the gesture
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+
+  // 2. Resume synchronously (no await — keeps us in the gesture)
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume(); // intentionally not awaited
+  }
+
+  // 3. Schedule a silent 1-sample buffer — this is the magic
+  //    incantation that fully ungates iOS audio output.
+  const silentBuf = audioCtx.createBuffer(1, 1, 22050);
+  const silentSrc = audioCtx.createBufferSource();
+  silentSrc.buffer = silentBuf;
+  silentSrc.connect(audioCtx.destination);
+  silentSrc.start(0);
+
+  audioUnlocked = true;
+
+  // Hide overlay
+  document.getElementById('audioUnlockOverlay').classList.remove('visible');
+
+  // Play a tiny test tone so the user gets immediate confirmation
+  playNote(440, audioCtx.currentTime + 0.05, 0.15, 'sine', 0.2);
+}
+
+// ----------------------------------------------------------
+// Get (or create) a running AudioContext.
+// On iOS the context may auto-suspend between interactions;
+// we call resume() synchronously here too.
+// ----------------------------------------------------------
+function getAudioCtx() {
+  if (!audioCtx) {
+    // Fallback creation — will be silently blocked on iOS until
+    // the user has tapped the unlock overlay, but won't crash.
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  // Synchronous resume — safe to call even when already running
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  return audioCtx;
+}
+
+// ----------------------------------------------------------
+// Desktop / non-iOS browsers: unlock on first click without
+// needing the overlay.
+// ----------------------------------------------------------
+function desktopUnlock() {
+  if (audioUnlocked) return;
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  const silentBuf = audioCtx.createBuffer(1, 1, 22050);
+  const silentSrc = audioCtx.createBufferSource();
+  silentSrc.buffer = silentBuf;
+  silentSrc.connect(audioCtx.destination);
+  silentSrc.start(0);
+  audioUnlocked = true;
+}
+
+// Listen for the first non-iOS interaction (desktop / Chrome Android)
+document.addEventListener('click', desktopUnlock, { once: true });
+document.addEventListener('touchstart', desktopUnlock, { once: true, passive: true });
+
+// ----------------------------------------------------------
+// Core audio primitives
+// ----------------------------------------------------------
+function playNote(freq, startTime, duration, type = 'sine', volume = 0.4) {
+  const ctx = getAudioCtx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, startTime);
+  gain.gain.setValueAtTime(0, startTime);
+  gain.gain.linearRampToValueAtTime(volume, startTime + 0.02);
+  gain.gain.setValueAtTime(volume, startTime + duration - 0.05);
+  gain.gain.linearRampToValueAtTime(0, startTime + duration);
+  osc.start(startTime);
+  osc.stop(startTime + duration);
+}
+
+function playDrum(startTime, volume = 0.5) {
+  const ctx = getAudioCtx();
+  const bufferSize = Math.floor(ctx.sampleRate * 0.15);
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.04));
+  }
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(volume, startTime);
+  source.connect(gain);
+  gain.connect(ctx.destination);
+  source.start(startTime);
+}
+
+// Note frequencies
+const NOTES = {
+  C4: 261.63, D4: 293.66, E4: 329.63, F4: 349.23,
+  G4: 392.00, A4: 440.00, B4: 493.88,
+  C5: 523.25, D5: 587.33, E5: 659.25, F5: 698.46,
+  G5: 783.99, A5: 880.00, B5: 987.77,
+  C3: 130.81, D3: 146.83, E3: 164.81, G3: 196.00, A3: 220.00,
+};
+
+function randomNote(pool) {
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function playSequence(noteFreqs, bpm = 120, noteType = 'sine', startDelay = 0) {
+  const ctx = getAudioCtx();
+  const now = ctx.currentTime + 0.1 + startDelay;
+  const beatDur = 60 / bpm;
+  noteFreqs.forEach((freq, i) => {
+    if (freq > 0) playNote(freq, now + i * beatDur, beatDur * 0.85, noteType);
+  });
+  return now + noteFreqs.length * beatDur;
+}
+
+function playRhythm(pattern, bpm = 100, startDelay = 0) {
+  const ctx = getAudioCtx();
+  const now = ctx.currentTime + 0.1 + startDelay;
+  const beatDur = 60 / bpm;
+  pattern.forEach((hit, i) => {
+    if (hit) playDrum(now + i * beatDur);
+  });
+  return now + pattern.length * beatDur;
+}
+
+// ============================================================
+// GAME STATE
+// ============================================================
+let state = {
+  mode: 'pitch',
+  questions: [],
+  currentQ: 0,
+  score: 0,
+  streak: 0,
+  totalQuestions: 10,
+  sessionResults: {},
+  bestScores: JSON.parse(localStorage.getItem('waoScores') || '{}'),
+  answered: false,
+  currentQuestion: null,
+};
+
+// ============================================================
+// QUESTION GENERATORS
+// ============================================================
+
+function generatePitchQuestion() {
+  const pool = ['C4','D4','E4','F4','G4','A4','B4','C5','D5','E5','F5','G5','A5'];
+  const note1 = randomNote(pool);
+  let note2;
+  do { note2 = randomNote(pool); } while (note2 === note1);
+
+  const isHigher = NOTES[note2] > NOTES[note1];
+  const diff = Math.abs(NOTES[note2] - NOTES[note1]);
+  const difficulty = diff > 100 ? 'easy' : diff > 40 ? 'medium' : 'hard';
+
+  return {
+    type: 'pitch',
+    text: 'Listen to the two notes. Is the second note HIGHER or LOWER than the first?',
+    play: () => {
+      const ctx = getAudioCtx();
+      const now = ctx.currentTime + 0.1;
+      playNote(NOTES[note1], now, 0.7, 'sine');
+      playNote(NOTES[note2], now + 0.9, 0.7, 'sine');
+    },
+    options: ['Higher ↑', 'Lower ↓'],
+    correct: isHigher ? 'Higher ↑' : 'Lower ↓',
+    explanation: `The first note was ${note1} and the second was ${note2}.`,
+    optionLayout: 'two-col',
+    visualiser: 'pitch',
+    note1, note2, difficulty,
+  };
+}
+
+function generateMelodyQuestion() {
+  const pool = ['C4','D4','E4','F4','G4','A4','B4','C5'];
+  const len = 4 + Math.floor(Math.random() * 3);
+
+  const melody1 = Array.from({length: len}, () => randomNote(pool));
+  const melody2 = [...melody1];
+
+  const changeMelody = Math.random() > 0.35;
+  let changedPos = -1;
+
+  if (changeMelody) {
+    changedPos = Math.floor(Math.random() * len);
+    let newNote;
+    do { newNote = randomNote(pool); } while (newNote === melody1[changedPos]);
+    melody2[changedPos] = newNote;
+  }
+
+  return {
+    type: 'melody',
+    text: changeMelody
+      ? `Listen to both melodies. They are DIFFERENT. Which note changed? (Note ${changedPos + 1})`
+      : 'Listen to both melodies carefully. Are they the SAME or DIFFERENT?',
+    play: (playBoth = true) => {
+      const ctx = getAudioCtx();
+      const freqs1 = melody1.map(n => NOTES[n]);
+      const freqs2 = melody2.map(n => NOTES[n]);
+      const end1 = playSequence(freqs1, 130, 'triangle');
+      if (playBoth) {
+        const gap = end1 - ctx.currentTime + 0.3;
+        playSequence(freqs2, 130, 'triangle', gap);
+      }
+    },
+    options: ['Same', 'Different'],
+    correct: changeMelody ? 'Different' : 'Same',
+    explanation: changeMelody
+      ? `Note ${changedPos + 1} changed from ${melody1[changedPos]} to ${melody2[changedPos]}.`
+      : 'Both melodies were identical.',
+    optionLayout: 'two-col',
+    visualiser: null,
+    changeMelody, melody1, melody2, changedPos,
+  };
+}
+
+function generateRhythmQuestion() {
+  const len = 8;
+  const patterns = [
+    [1,0,1,0,1,0,1,0],
+    [1,1,0,1,1,0,1,0],
+    [1,0,0,1,0,0,1,0],
+    [1,1,1,0,1,1,1,0],
+    [1,0,1,1,0,1,0,0],
+    [1,0,0,0,1,0,1,0],
+    [1,1,0,0,1,0,1,1],
+  ];
+
+  const pattern1 = patterns[Math.floor(Math.random() * patterns.length)].slice();
+  const pattern2 = [...pattern1];
+
+  const changeRhythm = Math.random() > 0.35;
+  let changedPos = -1;
+
+  if (changeRhythm) {
+    changedPos = Math.floor(Math.random() * len);
+    pattern2[changedPos] = pattern1[changedPos] ? 0 : 1;
+  }
+
+  return {
+    type: 'rhythm',
+    text: 'Listen to both rhythms. Are they the SAME or DIFFERENT?',
+    play: () => {
+      const ctx = getAudioCtx();
+      const end1 = playRhythm(pattern1, 110);
+      const gap = end1 - ctx.currentTime + 0.4;
+      playRhythm(pattern2, 110, gap);
+    },
+    options: ['Same', 'Different'],
+    correct: changeRhythm ? 'Different' : 'Same',
+    explanation: changeRhythm ? `Beat ${changedPos + 1} was different.` : 'Both rhythms were identical.',
+    optionLayout: 'two-col',
+    visualiser: 'rhythm',
+    pattern1, pattern2, changeRhythm, changedPos,
+  };
+}
+
+function generateTextureQuestion() {
+  const options = [
+    { count: 1, label: '1 instrument', play: () => {
+      playSequence([NOTES.C4, NOTES.E4, NOTES.G4, NOTES.C5], 100, 'sine');
+    }},
+    { count: 2, label: '2 instruments', play: () => {
+      playSequence([NOTES.C4, NOTES.E4, NOTES.G4, NOTES.C5], 100, 'sine');
+      playSequence([NOTES.G3, NOTES.C4, NOTES.E4, NOTES.G4], 100, 'triangle');
+    }},
+    { count: 3, label: '3 instruments', play: () => {
+      playSequence([NOTES.C4, NOTES.E4, NOTES.G4, NOTES.C5], 100, 'sine');
+      playSequence([NOTES.G3, NOTES.C4, NOTES.E4, NOTES.G4], 100, 'triangle');
+      playSequence([NOTES.E3, NOTES.A3, NOTES.C4, NOTES.E4], 100, 'square', 0);
+    }},
+  ];
+
+  const chosen = options[Math.floor(Math.random() * options.length)];
+
+  const questions = [
+    { text: 'How many instruments are playing?', answers: ['1', '2', '3'], correct: String(chosen.count) },
+    { text: 'Listen carefully. How many different sounds can you hear?', answers: ['One', 'Two', 'Three'], correct: ['One','Two','Three'][chosen.count - 1] },
+  ];
+
+  const q = questions[Math.floor(Math.random() * questions.length)];
+
+  return {
+    type: 'texture',
+    text: q.text,
+    play: chosen.play,
+    options: q.answers,
+    correct: q.correct,
+    explanation: `There were ${chosen.count} instrument${chosen.count > 1 ? 's' : ''} playing.`,
+    optionLayout: 'two-col',
+    visualiser: null,
+    count: chosen.count,
+  };
+}
+
+function generateQuestion(type) {
+  if (type === 'mixed') {
+    const types = ['pitch', 'melody', 'rhythm', 'texture'];
+    type = types[Math.floor(Math.random() * types.length)];
+  }
+  switch(type) {
+    case 'pitch':   return generatePitchQuestion();
+    case 'melody':  return generateMelodyQuestion();
+    case 'rhythm':  return generateRhythmQuestion();
+    case 'texture': return generateTextureQuestion();
+  }
+}
+
+// ============================================================
+// SCREENS
+// ============================================================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function goHome() {
+  updateHomeBestScores();
+  showScreen('homeScreen');
+}
+
+function showHowToPlay() { showScreen('howScreen'); }
+
+function updateHomeBestScores() {
+  ['pitch','melody','rhythm','texture'].forEach(m => {
+    const el = document.getElementById(m + 'Best');
+    if (state.bestScores[m]) {
+      el.textContent = `Best: ${state.bestScores[m]}/10`;
+    }
+  });
+}
+
+// ============================================================
+// GAME FLOW
+// ============================================================
+function startMode(mode) {
+  state.mode = mode;
+  state.currentQ = 0;
+  state.score = 0;
+  state.streak = 0;
+  state.answered = false;
+  state.questions = [];
+  state.sessionResults = { pitch: [], melody: [], rhythm: [], texture: [] };
+
+  for (let i = 0; i < state.totalQuestions; i++) {
+    state.questions.push(generateQuestion(mode));
+  }
+
+  const badges = {
+    pitch: '🎯 Pitch', melody: '🎶 Melody',
+    rhythm: '🥁 Rhythm', texture: '🎸 Texture', mixed: '🎲 Mixed'
+  };
+  document.getElementById('modeBadge').textContent = badges[mode];
+  document.getElementById('currentScore').textContent = '0';
+  updateStreak(0);
+
+  showScreen('gameScreen');
+  renderQuestion();
+}
+
+function renderQuestion() {
+  const q = state.questions[state.currentQ];
+  state.currentQuestion = q;
+  state.answered = false;
+
+  document.getElementById('questionNumber').textContent =
+    `Question ${state.currentQ + 1} of ${state.totalQuestions}`;
+  document.getElementById('progressFill').style.width =
+    `${(state.currentQ / state.totalQuestions) * 100}%`;
+  document.getElementById('feedbackBanner').className = 'feedback-banner';
+  document.getElementById('nextBtn').className = 'next-btn';
+  document.getElementById('questionText').textContent = q.text;
+
+  // Visualiser
+  const visArea = document.getElementById('visualiserArea');
+  visArea.innerHTML = '';
+  if (q.visualiser === 'rhythm') {
+    visArea.innerHTML = `<div class="rhythm-display" id="rhythmVis">
+      ${q.pattern1.map((b, i) =>
+        `<div class="beat-block" id="beat${i}"
+          style="width:${b?28:14}px;height:${b?40:20}px;background:var(--rhythm)"></div>`
+      ).join('')}
+    </div>`;
+  } else if (q.visualiser === 'pitch') {
+    visArea.innerHTML = `<div class="pitch-display" id="pitchVis">
+      <div class="pitch-note" id="pn0" style="height:50px;background:var(--pitch)">1st</div>
+      <div style="color:var(--muted);font-size:1.5rem">→</div>
+      <div class="pitch-note" id="pn1" style="height:50px;background:var(--melody)">2nd</div>
+    </div>`;
+  }
+
+  // Play area
+  const colorMap = { pitch: 'pitch', melody: 'melody', rhythm: 'rhythm', texture: 'texture' };
+  const color = colorMap[q.type] || 'melody';
+  document.getElementById('playArea').innerHTML = `
+    <button class="play-btn ${color}-btn" id="playBtn" onclick="playCurrentQuestion()">▶</button>
+    <div class="play-btn-label">Tap to listen</div>
+  `;
+
+  // Options
+  const grid = document.getElementById('optionsGrid');
+  grid.className = `options-grid ${q.optionLayout}`;
+  grid.innerHTML = q.options.map(opt =>
+    `<button class="option-btn" onclick="selectAnswer('${opt}')">${opt}</button>`
+  ).join('');
+}
+
+// ----------------------------------------------------------
+// playCurrentQuestion — kept SYNCHRONOUS so iOS stays inside
+// the user-gesture window at the point we call audio APIs.
+// ----------------------------------------------------------
+let isPlaying = false;
+
+function playCurrentQuestion() {
+  if (isPlaying) return;
+
+  // Ensure context is running — synchronous, no await
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume(); // synchronous call, no await
+  }
+  // If iOS audio was never unlocked via the overlay, play a
+  // silent frame now as a belt-and-suspenders measure.
+  if (!audioUnlocked) {
+    const b = audioCtx.createBuffer(1, 1, 22050);
+    const s = audioCtx.createBufferSource();
+    s.buffer = b;
+    s.connect(audioCtx.destination);
+    s.start(0);
+    audioUnlocked = true;
+  }
+
+  const q = state.currentQuestion;
+  if (!q) return;
+
+  isPlaying = true;
+  const btn = document.getElementById('playBtn');
+  if (btn) { btn.textContent = '⏸'; btn.classList.add('playing'); }
+
+  if (q.visualiser === 'rhythm') animateRhythm(q);
+  if (q.visualiser === 'pitch')  animatePitch(q);
+
+  q.play();
+
+  const durations = { pitch: 2200, melody: 4000, rhythm: 3500, texture: 3000 };
+  setTimeout(() => {
+    isPlaying = false;
+    if (btn) { btn.textContent = '▶'; btn.classList.remove('playing'); }
+  }, durations[q.type] || 3000);
+}
+
+function animateRhythm(q) {
+  q.pattern1.forEach((b, i) => {
+    if (b) setTimeout(() => {
+      const el = document.getElementById('beat' + i);
+      if (el) {
+        el.classList.add('active');
+        setTimeout(() => el.classList.remove('active'), 200);
+      }
+    }, i * (60000 / 110));
+  });
+}
+
+function animatePitch(q) {
+  const pn0 = document.getElementById('pn0');
+  const pn1 = document.getElementById('pn1');
+  if (!pn0 || !pn1) return;
+  setTimeout(() => pn0.classList.add('active'),    200);
+  setTimeout(() => pn0.classList.remove('active'), 900);
+  setTimeout(() => pn1.classList.add('active'),    1100);
+  setTimeout(() => pn1.classList.remove('active'), 1900);
+}
+
+function selectAnswer(answer) {
+  if (state.answered) return;
+  state.answered = true;
+
+  const q = state.currentQuestion;
+  const correct = answer === q.correct;
+
+  if (state.sessionResults[q.type]) {
+    state.sessionResults[q.type].push(correct);
+  }
+
+  if (correct) {
+    state.score++;
+    state.streak++;
+    document.getElementById('currentScore').textContent = state.score;
+    if (state.streak >= 3) {
+      updateStreak(state.streak);
+      if (state.streak % 3 === 0) spawnConfetti();
+    }
+  } else {
+    state.streak = 0;
+    updateStreak(0);
+  }
+
+  document.querySelectorAll('.option-btn').forEach(btn => {
+    btn.disabled = true;
+    if (btn.textContent === q.correct) btn.classList.add('correct');
+    else if (btn.textContent === answer && !correct) btn.classList.add('wrong');
+  });
+
+  const banner = document.getElementById('feedbackBanner');
+  if (correct) {
+    const msgs = ['Brilliant! 🌟', 'Spot on! ✨', 'Nice ears! 🎵', 'Perfect! 🎯', 'You got it! 💫'];
+    banner.textContent = msgs[Math.floor(Math.random() * msgs.length)];
+    banner.className = 'feedback-banner correct';
+  } else {
+    banner.textContent = `Not quite. ${q.explanation}`;
+    banner.className = 'feedback-banner wrong';
+  }
+
+  document.getElementById('nextBtn').className = 'next-btn visible';
+}
+
+function nextQuestion() {
+  state.currentQ++;
+  if (state.currentQ >= state.totalQuestions) {
+    showResults();
+  } else {
+    renderQuestion();
+  }
+}
+
+function updateStreak(count) {
+  const badge = document.getElementById('streakBadge');
+  document.getElementById('streakCount').textContent = count;
+  badge.style.display = count >= 3 ? 'block' : 'none';
+}
+
+// ============================================================
+// RESULTS
+// ============================================================
+function showResults() {
+  const pct = state.score / state.totalQuestions;
+
+  document.getElementById('finalScore').textContent = `${state.score}/${state.totalQuestions}`;
+
+  let title, msg;
+  if (pct >= 0.9)      { title = 'Outstanding! 🌟🌟🌟'; msg = 'Your ears are seriously sharp. Real test ready.'; }
+  else if (pct >= 0.7) { title = 'Really Good! 🌟🌟';    msg = "Strong performance. Keep training and you'll ace it."; }
+  else if (pct >= 0.5) { title = 'Getting There! 🌟';    msg = "Good foundation. A bit more practice and it'll click."; }
+  else                 { title = 'Keep Going! 💪';        msg = 'Every session makes your ears stronger. Trust the process.'; }
+
+  document.getElementById('resultsTitle').textContent = title;
+  document.getElementById('resultsMessage').textContent = msg;
+
+  const modeKey = state.mode;
+  if (!state.bestScores[modeKey] || state.score > state.bestScores[modeKey]) {
+    state.bestScores[modeKey] = state.score;
+    localStorage.setItem('waoScores', JSON.stringify(state.bestScores));
+  }
+
+  const typeNames = { pitch: '🎯 Pitch', melody: '🎶 Melody', rhythm: '🥁 Rhythm', texture: '🎸 Texture' };
+  let html = '<div style="font-weight:800;font-size:0.85rem;margin-bottom:12px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">This Session</div>';
+
+  Object.entries(state.sessionResults).forEach(([type, results]) => {
+    if (results.length === 0) return;
+    const correct = results.filter(Boolean).length;
+    const stars = correct / results.length >= 0.8 ? '⭐⭐⭐'
+                : correct / results.length >= 0.5 ? '⭐⭐' : '⭐';
+    html += `<div class="breakdown-row">
+      <span class="breakdown-name">${typeNames[type]}</span>
+      <span style="color:var(--muted);font-size:0.85rem">${correct}/${results.length}</span>
+      <span class="breakdown-stars">${stars}</span>
+    </div>`;
+  });
+
+  document.getElementById('resultsBreakdown').innerHTML = html;
+
+  if (pct >= 0.8) spawnConfetti();
+
+  showScreen('resultsScreen');
+}
+
+function playAgain() { startMode(state.mode); }
+
+// ============================================================
+// CONFETTI
+// ============================================================
+function spawnConfetti() {
+  const container = document.getElementById('confettiContainer');
+  const colors = ['#ff6b9d','#a78bfa','#34d399','#fbbf24','#60a5fa'];
+  for (let i = 0; i < 40; i++) {
+    const piece = document.createElement('div');
+    piece.className = 'confetti-piece';
+    piece.style.left = Math.random() * 100 + 'vw';
+    piece.style.top = '-20px';
+    piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+    piece.style.animationDelay = Math.random() * 0.5 + 's';
+    piece.style.animationDuration = (2 + Math.random() * 2) + 's';
+    piece.style.width  = (8 + Math.random() * 8) + 'px';
+    piece.style.height = (8 + Math.random() * 8) + 'px';
+    container.appendChild(piece);
+    setTimeout(() => piece.remove(), 4000);
+  }
+}
+
+// ============================================================
+// INIT
+// ============================================================
+updateHomeBestScores();
+maybeShowUnlockOverlay(); // show tap-to-enable prompt on iOS/Safari
+</script>
+
+</body>
+</html>
