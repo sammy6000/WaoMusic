@@ -1191,29 +1191,49 @@ let state = {
 function generatePitchQuestion() {
   const diff = state.difficulty;
 
-  // Note pools and minimum semitone gaps per difficulty.
-  // Mozart opens the full chromatic scale — you must distinguish
-  // notes just one semitone apart (e.g. C4 vs C#4).
-  const POOLS = {
-    beginner:     ['C4','E4','G4','A4','C5','E5','G5'],
-    intermediate: ['C4','D4','E4','F4','G4','A4','B4','C5','D5','E5','F5','G5'],
-    advanced:     ['C4','D4','E4','F4','G4','A4','B4','C5','D5','E5','F5','G5','A5'],
-    mozart:       Object.keys(NOTE_ST).filter(n => NOTE_ST[n] >= 60 && NOTE_ST[n] <= 79),
-  };
-  const MIN_ST = { beginner: 7, intermediate: 4, advanced: 2, mozart: 1 };
+  // For Beginner/Intermediate we pick two notes from a pool and enforce a
+  // minimum gap. For Advanced and Mozart we instead *fix* the gap in a tight
+  // range and derive note2 deterministically so the interval is always hard.
+  //
+  //   Beginner:     pool of open-spaced notes, gap ≥ 7 st  (5th+)
+  //   Intermediate: full major scale,           gap ≥ 4 st  (3rd+)
+  //   Advanced:     chromatic, gap forced to    2–4 st  (whole-tone → maj 3rd)
+  //   Mozart:       chromatic, gap forced to    1–2 st  (semitone → whole-tone)
 
-  const pool = POOLS[diff];
-  const minSt = MIN_ST[diff];
+  // All chromatic notes across the playable range (C3–B5).
+  const chromatic = Object.keys(NOTE_ST).sort((a,b) => NOTE_ST[a] - NOTE_ST[b]);
 
-  const note1 = randomNote(pool);
-  let note2, tries = 0;
-  do {
-    note2 = randomNote(pool);
-    tries++;
-  } while ((note2 === note1 || Math.abs(NOTE_ST[note2] - NOTE_ST[note1]) < minSt) && tries < 40);
+  let note1, note2, stDiff;
+
+  if (diff === 'advanced' || diff === 'mozart') {
+    const [minGap, maxGap] = diff === 'mozart' ? [1, 2] : [2, 4];
+    // Pick note1 from mid-range so there's always room to go up or down.
+    const midRange = chromatic.filter(n => NOTE_ST[n] >= 62 && NOTE_ST[n] <= 77);
+    note1 = randomNote(midRange);
+    stDiff = minGap + Math.floor(Math.random() * (maxGap - minGap + 1));
+    const dir = Math.random() < 0.5 ? 1 : -1;
+    const targetSt = NOTE_ST[note1] + dir * stDiff;
+    note2 = chromatic.find(n => NOTE_ST[n] === targetSt);
+    if (!note2) {
+      // Boundary hit — flip direction.
+      note2 = chromatic.find(n => NOTE_ST[n] === NOTE_ST[note1] - dir * stDiff);
+    }
+  } else {
+    const POOLS = {
+      beginner:     ['C4','E4','G4','A4','C5','E5','G5'],
+      intermediate: ['C4','D4','E4','F4','G4','A4','B4','C5','D5','E5'],
+    };
+    const minSt = diff === 'beginner' ? 7 : 4;
+    const pool = POOLS[diff];
+    note1 = randomNote(pool);
+    let tries = 0;
+    do { note2 = randomNote(pool); tries++; }
+    while ((note2 === note1 || Math.abs(NOTE_ST[note2] - NOTE_ST[note1]) < minSt) && tries < 40);
+    stDiff = Math.abs(NOTE_ST[note2] - NOTE_ST[note1]);
+  }
 
   const isHigher = NOTES[note2] > NOTES[note1];
-  const stDiff = Math.abs(NOTE_ST[note2] - NOTE_ST[note1]);
+  stDiff = stDiff || Math.abs(NOTE_ST[note2] - NOTE_ST[note1]);
   const difficulty = stDiff >= 7 ? 'easy' : stDiff >= 4 ? 'medium' : 'hard';
 
   return {
