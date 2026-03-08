@@ -740,8 +740,6 @@ body::before {
 
     <div class="feedback-banner" id="feedbackBanner"></div>
     <div class="options-grid" id="optionsGrid"></div>
-    <br>
-    <button class="next-btn" id="nextBtn" onclick="nextQuestion()">Next →</button>
   </div>
 
   <!-- RESULTS SCREEN -->
@@ -1183,6 +1181,7 @@ let state = {
   bestScores: JSON.parse(localStorage.getItem('waoScores') || '{}'),
   answered: false,
   currentQuestion: null,
+  advanceTimer: null,
 };
 
 // ============================================================
@@ -1520,7 +1519,7 @@ function renderQuestion() {
   document.getElementById('progressFill').style.width =
     `${(state.currentQ / state.totalQuestions) * 100}%`;
   document.getElementById('feedbackBanner').className = 'feedback-banner';
-  document.getElementById('nextBtn').className = 'next-btn';
+  clearTimeout(state.advanceTimer);
   document.getElementById('questionText').textContent = q.text;
 
   // Visualiser
@@ -1665,7 +1664,8 @@ function selectAnswer(answer) {
     banner.className = 'feedback-banner wrong';
   }
 
-  document.getElementById('nextBtn').className = 'next-btn visible';
+  // Auto-advance: give more time for wrong answers so the explanation can be read.
+  state.advanceTimer = setTimeout(nextQuestion, correct ? 1500 : 3000);
 }
 
 function nextQuestion() {
